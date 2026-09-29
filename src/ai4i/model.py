@@ -40,7 +40,7 @@ def build_pipeline(model_name: str, random_state: int = 42) -> Pipeline:
     )
     if model_name == "rf":
         model = RandomForestClassifier(
-            n_estimators=300, class_weight="balanced", random_state=random_state, n_jobs=-1,
+            n_estimators=300, random_state=random_state, n_jobs=-1,
         )
     elif model_name == "xgb":
         model = XGBClassifier(
