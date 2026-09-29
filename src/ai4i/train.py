@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 EXPERIMENT_NAME = "ai4i-failure-classifier"
 SKOPS_TRUSTED_TYPES = {
     "rf": ["sklearn.tree._tree.Tree"],
-    "xgb": [],   # fill in from the error message the first time you train xgb
+    "xgb": ['xgboost.core.Booster', 'xgboost.sklearn.XGBClassifier'],   # fill in from the error message the first time you train xgb
 }
 CV_FOLDS = 5
 CV_SCORING = ("f1_macro", "balanced_accuracy")
