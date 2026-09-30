@@ -36,14 +36,16 @@ logger = logging.getLogger(__name__)
 EXPERIMENT_NAME = "ai4i-failure-classifier"
 SKOPS_TRUSTED_TYPES = {
     "rf": ["sklearn.tree._tree.Tree"],
-    "xgb": ['xgboost.core.Booster', 'xgboost.sklearn.XGBClassifier'],   # fill in from the error message the first time you train xgb
+    "xgb": ['xgboost.core.Booster', 'xgboost.sklearn.XGBClassifier'],
 }
 CV_FOLDS = 5
 CV_SCORING = ("f1_macro", "balanced_accuracy")
 
+def make_cv(random_state: int) -> StratifiedKFold:
+    return StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=random_state)
 
 def cross_validate_pipeline(pipeline, X, y, sample_weight, random_state: int = RANDOM_STATE) -> dict:
-    cv = StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=random_state)
+    cv = make_cv(random_state)
     results = cross_validate(
         pipeline, X, y, cv=cv, scoring=list(CV_SCORING),
         params={"model__sample_weight": sample_weight},                    
