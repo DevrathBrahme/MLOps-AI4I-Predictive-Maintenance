@@ -1,24 +1,29 @@
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.utils.class_weight import compute_sample_weight
-
-from ai4i.data import FEATURE_COLUMNS, TARGET
-from ai4i.model import encode_labels
-
+import mlflow
 import argparse
 import logging
-
-import mlflow
 from mlflow.models import infer_signature
-from sklearn.model_selection import StratifiedKFold, cross_validate
-
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_predict, cross_validate, train_test_split
+from sklearn.utils.class_weight import compute_sample_weight
+from ai4i.data import FEATURE_COLUMNS, TARGET
+from ai4i.model import encode_labels
 from ai4i.db import get_connection
 from ai4i.data import load_training_data
 from ai4i.model import CLASSES, MODEL_NAMES, build_pipeline
+from sklearn.pipeline import Pipeline
+
 
 TEST_SIZE = 0.2
 RANDOM_STATE = 42
+CV_FOLDS = 5
+CV_SCORING = ("f1_macro", "balanced_accuracy")
+EXPERIMENT_NAME = "ai4i-failure-classifier"
+SKOPS_TRUSTED_TYPES = {
+    "rf": ["sklearn.tree._tree.Tree"],
+    "xgb": ['xgboost.core.Booster', 'xgboost.sklearn.XGBClassifier'],
+}
+logger = logging.getLogger(__name__)
 
 
 def split_data(df: pd.DataFrame, test_size: float = TEST_SIZE, random_state: int = RANDOM_STATE):
@@ -31,18 +36,9 @@ def balanced_sample_weights(y: np.ndarray) -> np.ndarray:
     return compute_sample_weight("balanced", y)
 
 
-logger = logging.getLogger(__name__)
-
-EXPERIMENT_NAME = "ai4i-failure-classifier"
-SKOPS_TRUSTED_TYPES = {
-    "rf": ["sklearn.tree._tree.Tree"],
-    "xgb": ['xgboost.core.Booster', 'xgboost.sklearn.XGBClassifier'],
-}
-CV_FOLDS = 5
-CV_SCORING = ("f1_macro", "balanced_accuracy")
-
 def make_cv(random_state: int) -> StratifiedKFold:
     return StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=random_state)
+
 
 def cross_validate_pipeline(pipeline, X, y, sample_weight, random_state: int = RANDOM_STATE) -> dict:
     cv = make_cv(random_state)
@@ -56,6 +52,23 @@ def cross_validate_pipeline(pipeline, X, y, sample_weight, random_state: int = R
         metrics[f"cv_{name}_mean"] = float(np.mean(scores))
         metrics[f"cv_{name}_std"] = float(np.std(scores))
     return metrics
+
+
+def out_of_fold_proba(
+    pipeline: Pipeline,
+    X: pd.DataFrame,
+    y: np.ndarray,
+    sample_weight: np.ndarray,
+    random_state: int,
+) -> np.ndarray:
+    return cross_val_predict(
+        pipeline,
+        X,
+        y,
+        cv=make_cv(random_state),
+        method="predict_proba",
+        params={"model__sample_weight": sample_weight},
+    )
 
 
 def main() -> None:
