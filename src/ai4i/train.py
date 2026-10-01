@@ -1,17 +1,18 @@
+import argparse
+import hashlib
+import logging
+
+import mlflow
 import numpy as np
 import pandas as pd
-import mlflow
-import argparse
-import logging
 from mlflow.models import infer_signature
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_predict, cross_validate, train_test_split
-from sklearn.utils.class_weight import compute_sample_weight
-from ai4i.data import FEATURE_COLUMNS, TARGET
-from ai4i.model import encode_labels
-from ai4i.db import get_connection
-from ai4i.data import load_training_data
-from ai4i.model import CLASSES, MODEL_NAMES, build_pipeline
+from sklearn.model_selection import StratifiedKFold, cross_val_predict, cross_validate, train_test_split
 from sklearn.pipeline import Pipeline
+from sklearn.utils.class_weight import compute_sample_weight
+
+from ai4i.data import FEATURE_COLUMNS, TARGET, load_training_data
+from ai4i.db import get_connection
+from ai4i.model import CLASSES, MODEL_NAMES, build_pipeline, encode_labels
 
 
 TEST_SIZE = 0.2
@@ -31,6 +32,15 @@ def split_data(df: pd.DataFrame, test_size: float = TEST_SIZE, random_state: int
     y = encode_labels(df[TARGET])
     return train_test_split(X, y, test_size=test_size, stratify=y, random_state=random_state)
 
+def dataset_fingerprint(X: pd.DataFrame, y: np.ndarray) -> str:
+    """Compute a stable fingerprint of a dataset (X, y) that is independent of row order and sensitive to any change in values or labels."""
+    frame = X.assign(label=y)
+    frame = frame.sort_index()
+    row_hashes = pd.util.hash_pandas_object(frame, index=True)
+    digest = hashlib.sha256()
+    for row_hash in row_hashes:
+        digest.update(row_hash.to_bytes(8, "big"))
+    return digest.hexdigest()
 
 def balanced_sample_weights(y: np.ndarray) -> np.ndarray:
     return compute_sample_weight("balanced", y)
