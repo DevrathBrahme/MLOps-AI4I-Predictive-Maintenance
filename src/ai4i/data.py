@@ -15,10 +15,10 @@ FEATURE_COLUMNS = (
     "strain_min_nm"
 )
 TARGET = "failure_type"
-
+ID_COLUMN = "udi"
 
 def load_training_data(conn: psycopg.Connection) -> pd.DataFrame:
-    columns = [*FEATURE_COLUMNS, TARGET]
+    columns = [*FEATURE_COLUMNS, TARGET, ID_COLUMN]
     query = sql.SQL("SELECT {cols} FROM {view} WHERE {target} IS NOT NULL ORDER BY udi").format(
         cols=sql.SQL(", ").join(sql.Identifier(col) for col in columns),
         view=sql.Identifier(VIEW),
@@ -28,4 +28,4 @@ def load_training_data(conn: psycopg.Connection) -> pd.DataFrame:
         cur.execute(query)
         names = [desc.name for desc in cur.description]
         rows = cur.fetchall()
-    return pd.DataFrame(rows, columns=names)
+    return pd.DataFrame(rows, columns=names).set_index(ID_COLUMN)
