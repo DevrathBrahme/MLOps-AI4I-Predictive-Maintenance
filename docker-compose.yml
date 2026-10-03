@@ -1,6 +1,14 @@
 x-app: &app
   build: .
   image: ai4i-app:dev
+
+x-db-env: &db-env
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  POSTGRES_DB: ${POSTGRES_DB}
+
 services:
   postgres:
     image: postgres:16
@@ -18,6 +26,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
   mlflow:
     <<: *app
     command:
@@ -50,6 +59,25 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  api:
+    <<: *app
+    environment:
+      <<: *db-env
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
 
 volumes:
   postgres_data:
