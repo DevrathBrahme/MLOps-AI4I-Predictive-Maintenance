@@ -12,3 +12,10 @@ requires-python = ">=3.12"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+markers = [
+    "integration: needs the Compose Postgres on localhost:5432 with .env sourced (deselect with -m 'not integration')",
+]
