@@ -79,6 +79,31 @@ services:
       retries: 5
       start_period: 60s
 
+  loader:
+    <<: *app
+    profiles: ["jobs"]
+    command: ["python", "-m", "ai4i.ingest"]
+    environment:
+      <<: *db-env
+    volumes:
+      - ./data/raw:/app/data/raw:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  trainer:
+    <<: *app
+    profiles: ["jobs"]
+    command: ["python", "-m", "ai4i.train", "--help"]
+    environment:
+      <<: *db-env
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   mlflow_artifacts:
