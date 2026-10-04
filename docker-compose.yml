@@ -98,6 +98,9 @@ services:
     environment:
       <<: *db-env
       MLFLOW_TRACKING_URI: http://mlflow:5000
+      # Commit of the code being trained; set by CI, empty locally (the image
+      # has no .git, so MLflow can't detect it). See ai4i.train.provenance_tags.
+      GIT_COMMIT: ${GIT_COMMIT:-}
     depends_on:
       postgres:
         condition: service_healthy

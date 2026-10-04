@@ -113,7 +113,9 @@ jobs:
       POSTGRES_USER: ai4i_ci
       POSTGRES_PASSWORD: ci-only-throwaway
       POSTGRES_DB: ai4i
-    # bash with -e -o pipefail: a failure inside a pipe fails the step.
+      # Forwarded into the trainer container (docker-compose.yml) and tagged
+      # on the CI-trained run; the smoke check asserts it matches this push.
+      GIT_COMMIT: ${{ github.sha }}
     defaults:
       run:
         shell: bash

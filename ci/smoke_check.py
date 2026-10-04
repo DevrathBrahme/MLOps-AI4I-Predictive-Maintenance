@@ -21,6 +21,7 @@ Every check is reported; the script exits 1 if any failed.
 
 import json
 import math
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -36,6 +37,7 @@ from ai4i.ingest import TABLE as READINGS_TABLE
 from ai4i.prediction_log import TABLE as LOG_TABLE
 from ai4i.registry import resolve_champion
 from ai4i.risk import THRESHOLD_TAG
+from ai4i.train import GIT_COMMIT_ENV, GIT_COMMIT_TAG
 
 API_URL = "http://api:8000"
 REL_TOL = 1e-6
@@ -112,12 +114,19 @@ def check_reproduction(report):
     for name, expected in EXPECTED_VERSION_TAGS.items():
         actual = champion.tags.get(name)
         report.check(f"version tag {name}", actual == expected, repr(actual))
+        
+    expected_commit = os.environ.get(GIT_COMMIT_ENV, "")
+    if expected_commit:
+        actual_commit = run.data.tags.get(GIT_COMMIT_TAG)
+        report.check("git commit tag", actual_commit == expected_commit, repr(actual_commit))
+    else:
+        print(f"SKIP  git commit tag: {GIT_COMMIT_ENV} not set")
 
     tag = champion.tags.get(THRESHOLD_TAG)
     threshold = float(tag) if tag is not None else None
     report.check_close(f"version tag {THRESHOLD_TAG}", threshold, EXPECTED_THRESHOLD)
     return threshold
-
+    
 
 def call(method, path, payload=None):
     """Send one request to the API and return (status code, parsed JSON body)."""

@@ -1,6 +1,9 @@
 import argparse
 import hashlib
 import logging
+import os
+import re
+from collections.abc import Mapping
 
 import mlflow
 import numpy as np
@@ -33,6 +36,10 @@ SKOPS_TRUSTED_TYPES = {
     "rf": ["sklearn.tree._tree.Tree"],
     "xgb": ["xgboost.core.Booster", "xgboost.sklearn.XGBClassifier"],
 }
+
+GIT_COMMIT_ENV = "GIT_COMMIT"
+GIT_COMMIT_TAG = "mlflow.source.git.commit"
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,6 +68,25 @@ def dataset_fingerprint(X: pd.DataFrame, y: np.ndarray) -> str:
     for row_hash in row_hashes:
         digest.update(row_hash.to_bytes(8, "big"))
     return digest.hexdigest()
+
+
+def provenance_tags(environ: Mapping[str, str]) -> dict[str, str]:
+    """Return the git commit tag to set on a run when the caller supplies one.
+
+    MLflow records mlflow.source.git.commit itself when the code runs from a
+    git checkout (the host). Inside the image there is no .git and no git
+    binary, so CI passes the commit in GIT_COMMIT. An unset or blank value
+    (local container runs) adds nothing; anything other than a 40-character
+    lowercase hex hash raises ValueError, so a typo can't become provenance.
+    """
+    commit = environ.get(GIT_COMMIT_ENV, "").strip()
+    if not commit:
+        return {}
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise ValueError(
+            f"{GIT_COMMIT_ENV}={commit!r} is not a 40-character git commit hash"
+        )
+    return {GIT_COMMIT_TAG: commit}
 
 
 def balanced_sample_weights(y: np.ndarray) -> np.ndarray:
@@ -179,7 +205,7 @@ def main() -> None:
     }
 
     mlflow.set_experiment(EXPERIMENT_NAME)
-    with mlflow.start_run(run_name=args.model):
+    with mlflow.start_run(run_name=args.model, tags=provenance_tags(os.environ)):
         mlflow.log_params({
             "model_name": args.model,
             "test_size": TEST_SIZE,
