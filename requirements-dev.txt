@@ -3,5 +3,5 @@
 # that admits requirements.txt only.
 -r requirements.txt
 
-httpx==0.28.1
+httpx2==2.13.1
 pytest==9.1.1
