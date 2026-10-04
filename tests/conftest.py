@@ -1,6 +1,6 @@
 """Suite-wide pytest configuration for the AI4I tests.
 
-Two guards apply to every test in the suite:
+Three guards apply to every test in the suite:
 
 1. The folder decides the ``integration`` marker. Every test collected from
    ``tests/integration/`` is marked automatically, so ``-m "not integration"``
@@ -12,6 +12,9 @@ Two guards apply to every test in the suite:
    experiment's artifact location (default ``./mlruns`` in the current
    directory), so any test that logs artifacts must create its own
    experiment inside ``tmp_path``.
+3. No test leaves MLflow files in the repository root. The run fails if
+   ``mlruns/`` or ``mlflow.db`` appears there during the session; git status
+   cannot see them because both are gitignored.
 """
 
 from pathlib import Path
@@ -19,6 +22,8 @@ from pathlib import Path
 import pytest
 
 INTEGRATION_DIR = Path(__file__).parent / "integration"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+STRAY_PATHS = (REPO_ROOT / "mlruns", REPO_ROOT / "mlflow.db")
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -51,3 +56,12 @@ def private_mlflow_store(tmp_path, monkeypatch):
     monkeypatch.setenv("MLFLOW_TRACKING_URI", uri)
     monkeypatch.delenv("MLFLOW_REGISTRY_URI", raising=False)
     return uri
+
+
+@pytest.fixture(scope="session", autouse=True)
+def repo_root_stays_clean():
+    """Fail the run if any test leaves MLflow files in the repository root."""
+    before = {path for path in STRAY_PATHS if path.exists()}
+    yield
+    created = [str(path) for path in STRAY_PATHS if path.exists() and path not in before]
+    assert not created, f"Tests created {created}: MLflow wrote outside tmp_path"
