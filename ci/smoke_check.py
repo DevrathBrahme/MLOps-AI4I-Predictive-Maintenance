@@ -15,10 +15,9 @@ matched bit for bit.
 Part 2 checks the API end to end: /health, three known readings (low, high
 PWF, high TWF), each response's request_id present in predictions_log with the
 same tier, and an invalid request rejected with 422 and never logged.
+
 Every check is reported, and a skipped provenance check counts as a failure
 (CI always forwards GIT_COMMIT); the script exits 1 if any check failed.
-
-Every check is reported; the script exits 1 if any failed.
 """
 
 import json
@@ -128,7 +127,7 @@ def check_reproduction(report):
     threshold = float(tag) if tag is not None else None
     report.check_close(f"version tag {THRESHOLD_TAG}", threshold, EXPECTED_THRESHOLD)
     return threshold
-    
+
 
 def call(method, path, payload=None):
     """Send one request to the API and return (status code, parsed JSON body)."""
