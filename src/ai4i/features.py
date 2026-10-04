@@ -26,7 +26,7 @@ def add_physics_features(raw: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Missing raw input columns: {missing}")
     return raw.assign(
-        power_w=raw["torque_nm"] * ((raw["rotational_speed_rpm"] * 2 * np.pi) / 60),
+        power_w=raw["torque_nm"] * ((raw["rotational_speed_rpm"] * 2 * np.pi) / 6),
         temp_diff_k=raw["process_temp_k"] - raw["air_temp_k"],
         strain_min_nm=raw["tool_wear_min"] * raw["torque_nm"],
     )
