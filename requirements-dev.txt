@@ -1,7 +1,7 @@
 # Test-time dependencies for the host venv and the CI runner.
-# Never installed in the Docker image: .dockerignore is an allowlist
-# that admits requirements.txt only.
--r requirements.txt
+# Never installed in the Docker images: .dockerignore admits only the runtime
+# and monitoring requirements files.
+-r requirements-monitor.txt
 
 httpx2==2.13.1
 pytest==9.1.1

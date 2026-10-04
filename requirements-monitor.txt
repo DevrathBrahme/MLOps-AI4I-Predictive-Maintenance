@@ -1,0 +1,6 @@
+# Monitoring dependencies: everything the runtime needs, plus Evidently.
+# Installed only in the monitor image (Dockerfile target "monitor") and in the
+# test venv; the API image (target "runtime") never contains Evidently.
+-r requirements.txt
+
+evidently==0.7.23

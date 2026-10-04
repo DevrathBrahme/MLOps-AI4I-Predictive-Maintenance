@@ -1,5 +1,7 @@
 x-app: &app
-  build: .
+  build:
+    context: .
+    target: runtime
   image: ai4i-app:dev
 
 x-db-env: &db-env
@@ -101,6 +103,21 @@ services:
       # Commit of the code being trained; set by CI, empty locally (the image
       # has no .git, so MLflow can't detect it). See ai4i.train.provenance_tags.
       GIT_COMMIT: ${GIT_COMMIT:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+
+  monitor:
+    build:
+      context: .
+      target: monitor
+    image: ai4i-monitor:dev
+    profiles: ["jobs"]
+    environment:
+      <<: *db-env
+      MLFLOW_TRACKING_URI: http://mlflow:5000
     depends_on:
       postgres:
         condition: service_healthy

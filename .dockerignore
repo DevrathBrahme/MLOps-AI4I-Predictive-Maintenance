@@ -1,6 +1,8 @@
+# Allowlist: ignore everything, then admit only what the images are built from.
 *
 !pyproject.toml
 !requirements.txt
+!requirements-monitor.txt
 !src/
 **/__pycache__
 **/*.pyc

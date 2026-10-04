@@ -43,6 +43,7 @@ jobs:
           cache: pip
           cache-dependency-path: |
             requirements.txt
+            requirements-monitor.txt
             requirements-dev.txt
 
       - name: Install dependencies and the package
@@ -81,6 +82,7 @@ jobs:
           cache: pip
           cache-dependency-path: |
             requirements.txt
+            requirements-monitor.txt
             requirements-dev.txt
 
       - name: Install dependencies and the package
