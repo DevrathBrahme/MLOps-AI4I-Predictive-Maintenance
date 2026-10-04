@@ -1,9 +1,10 @@
 # Continuous integration for the AI4I predictive-maintenance service.
-# Two jobs run in parallel on fresh machines:
 #   tests        the service-free layers (unit, contract, API, registry)
 #   integration  Postgres from the repo's Compose file, the loader, and the
 #                integration tests (feature parity, predictions_log rules)
-# The full-stack smoke job is added in a later step.
+#   smoke        after both pass: rebuild the whole stack from the repo (D33)
+#                and check that it reproduces the real champion and that the
+#                API logs every recommendation before returning it
 name: CI
 
 on:
@@ -100,3 +101,62 @@ jobs:
       - name: Show Postgres logs
         if: failure()
         run: docker compose logs postgres
+
+  smoke:
+    name: Bootstrap smoke (full stack)
+    needs: [tests, integration]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Only Compose interpolation needs these: inside the stack, containers
+    # reach each other by service name (x-db-env sets POSTGRES_HOST=postgres).
+    env:
+      POSTGRES_USER: ai4i_ci
+      POSTGRES_PASSWORD: ci-only-throwaway
+      POSTGRES_DB: ai4i
+    # bash with -e -o pipefail: a failure inside a pipe fails the step.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build the app image
+        run: docker compose build
+
+      - name: Start Postgres and MLflow
+        run: docker compose up -d --wait postgres mlflow
+
+      - name: Load the sensor data (loader container)
+        run: docker compose run --rm loader
+
+      - name: Train the xgb candidate
+        run: docker compose run --rm trainer python -m ai4i.train --model xgb
+
+      - name: Find the training run
+        run: |
+          RUN_ID=$(docker compose run --rm -T trainer python -c "import mlflow; print(mlflow.search_runs(experiment_names=['ai4i-failure-classifier'])['run_id'].iloc[0])" | tail -n1)
+          [[ "$RUN_ID" =~ ^[0-9a-f]{32}$ ]] || { echo "Unexpected run id: '$RUN_ID'"; exit 1; }
+          echo "Training run: $RUN_ID"
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+
+      - name: Evaluate on the sealed test set (throwaway CI experiment)
+        run: docker compose run --rm trainer python -m ai4i.evaluate --run-id "$RUN_ID"
+
+      - name: Register the champion
+        run: docker compose run --rm trainer python -m ai4i.registry --run-id "$RUN_ID"
+
+      - name: Set the review threshold
+        run: docker compose run --rm trainer python -m ai4i.thresholds --model xgb
+
+      - name: Start the API
+        run: docker compose up -d --wait api
+
+      - name: Check reproduction and the API end to end
+        run: docker compose run --rm -T -v "$PWD/ci:/ci:ro" trainer python /ci/smoke_check.py
+
+      - name: Show service logs
+        if: failure()
+        run: docker compose logs
