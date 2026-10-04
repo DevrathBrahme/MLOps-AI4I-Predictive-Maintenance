@@ -29,14 +29,20 @@ FROM python:3.12-slim AS base
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 \
     && rm -rf /var/lib/apt/lists/*
+# /mlartifacts is owned by app so a named volume mounted there inherits it.
 RUN useradd --create-home --uid 10001 app \
     && mkdir /mlartifacts \
     && chown app:app /mlartifacts
+# The images contain neither git nor a .git directory, so MLflow's automatic git
+# detection always fails; quiet stops GitPython warning about it on every run.
+# Commit provenance comes from GIT_COMMIT instead (ai4i.train.provenance_tags).
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    GIT_PYTHON_REFRESH=quiet
+# Relative paths such as ingest's DEFAULT_CSV resolve from here.
 WORKDIR /app
 
 # ---- monitor image ----
