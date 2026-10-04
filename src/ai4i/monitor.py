@@ -14,6 +14,8 @@ per-column method and threshold, and an alert if ANY column drifts (not
 Evidently's default "half the columns" dataset rule, which passes a real
 two-column sensor fault); no drift verdict at all for a window under MIN_ROWS
 requests, where the default thresholds raise false alarms on healthy data.
+The any-column rule is also configured into Evidently's own dataset test
+(DRIFT_SHARE), so the HTML report an operator opens says what the alert says.
 
     python -m ai4i.monitor --since 2026-10-05T00:00:00+05:30
 """
@@ -42,6 +44,10 @@ CURRENT_COLUMNS = (*FEATURE_COLUMNS, "risk_tier", "predicted_mode")
 CATEGORICAL_COLUMNS = ("type",)
 NUMERICAL_COLUMNS = tuple(c for c in FEATURE_COLUMNS if c not in CATEGORICAL_COLUMNS)
 MIN_ROWS = 1000
+# Evidently's dataset test fails when the share of drifted columns reaches
+# drift_share; one column in nine is enough (D58). Its default, 0.5, would
+# headline a two-column sensor fault as "Dataset Drift is NOT detected".
+DRIFT_SHARE = 1 / len(FEATURE_COLUMNS)
 EXPERIMENT_NAME = "ai4i-monitoring"
 INSUFFICIENT_DATA = "insufficient_data"
 
@@ -122,14 +128,15 @@ def drift_report(reference: pd.DataFrame, current: pd.DataFrame) -> tuple[Run, l
 
     Returns the snapshot (for the HTML report) and one ColumnDrift per input,
     read from Evidently's own per-column tests, so the drift rule is
-    Evidently's, not a re-implementation.
+    Evidently's, not a re-implementation. Raises RuntimeError if Evidently's
+    dataset test and the any-column verdict disagree.
     """
     definition = DataDefinition(
         numerical_columns=list(NUMERICAL_COLUMNS),
         categorical_columns=list(CATEGORICAL_COLUMNS),
     )
     columns = list(FEATURE_COLUMNS)
-    snapshot = Report([DataDriftPreset()], include_tests=True).run(
+    snapshot = Report([DataDriftPreset(drift_share=DRIFT_SHARE)], include_tests=True).run(
         current_data=Dataset.from_pandas(
             current[columns].reset_index(drop=True), data_definition=definition
         ),
@@ -137,15 +144,19 @@ def drift_report(reference: pd.DataFrame, current: pd.DataFrame) -> tuple[Run, l
             reference[columns].reset_index(drop=True), data_definition=definition
         ),
     )
-    return snapshot, column_verdicts(json.loads(snapshot.json()))
+    snapshot_json = json.loads(snapshot.json())
+    verdicts = column_verdicts(snapshot_json)
+    if dataset_drift_detected(snapshot_json) != (summarize(verdicts) == "drift"):
+        raise RuntimeError("Evidently's dataset test disagrees with the any-column verdict")
+    return snapshot, verdicts
 
 
 def column_verdicts(snapshot: Mapping) -> list[ColumnDrift]:
     """Return one ColumnDrift per model input from a snapshot's JSON form.
 
-    Reads the per-column drift tests and the matching metric values. The
-    dataset-level "share of drifted columns" test has no column and is
-    deliberately ignored (D58). Raises ValueError on a test status other than
+    Reads the per-column drift tests and the matching metric values; the
+    dataset-level test has no column and is skipped here (see
+    dataset_drift_detected). Raises ValueError on a test status other than
     SUCCESS or FAIL, or if the tests don't cover exactly FEATURE_COLUMNS, so
     an Evidently upgrade that changes the preset fails loudly.
     """
@@ -170,6 +181,18 @@ def column_verdicts(snapshot: Mapping) -> list[ColumnDrift]:
     if covered != sorted(FEATURE_COLUMNS):
         raise ValueError(f"Drift tests cover {covered}, expected {sorted(FEATURE_COLUMNS)}")
     return verdicts
+
+
+def dataset_drift_detected(snapshot: Mapping) -> bool:
+    """Return Evidently's dataset-level verdict from a snapshot's JSON form.
+
+    Raises ValueError unless there is exactly one dataset-level test and its
+    status is SUCCESS or FAIL.
+    """
+    tests = [t for t in snapshot["tests"] if "column" not in t["metric_config"]["params"]]
+    if len(tests) != 1 or tests[0]["status"] not in ("SUCCESS", "FAIL"):
+        raise ValueError(f"Expected one passed or failed dataset drift test, got {tests}")
+    return tests[0]["status"] == "FAIL"
 
 
 def summarize(verdicts: Sequence[ColumnDrift]) -> str:
