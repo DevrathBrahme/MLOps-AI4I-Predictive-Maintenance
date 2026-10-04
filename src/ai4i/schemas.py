@@ -100,10 +100,23 @@ class Recommendation(BaseModel):
 
     @model_validator(mode="after")
     def check_consistency(self) -> Self:
-        """Reject a flag/tier mismatch or a runner-up equal to the prediction."""
+        """Reject a response that contradicts the tier rule it reports.
+
+        Checks what the response alone can prove: flagged matches the tier,
+        high exactly when the top class is a failure mode, and the runner-up
+        differs from the prediction. elevated vs low also depends on the model
+        version's threshold, which the response does not carry; the
+        predictions_log CHECK constraint enforces that half.
+        """
         if self.flagged != (self.risk_tier != "low"):
             raise ValueError(
                 f"flagged={self.flagged} contradicts risk_tier={self.risk_tier!r}"
+            )
+        if (self.risk_tier == "high") != (self.predicted_mode != "no_failure"):
+            raise ValueError(
+                f"risk_tier={self.risk_tier!r} contradicts "
+                f"predicted_mode={self.predicted_mode!r}: high exactly when the "
+                "top class is a failure mode"
             )
         if self.runner_up_mode == self.predicted_mode:
             raise ValueError(
