@@ -15,6 +15,8 @@ matched bit for bit.
 Part 2 checks the API end to end: /health, three known readings (low, high
 PWF, high TWF), each response's request_id present in predictions_log with the
 same tier, and an invalid request rejected with 422 and never logged.
+Every check is reported, and a skipped provenance check counts as a failure
+(CI always forwards GIT_COMMIT); the script exits 1 if any check failed.
 
 Every check is reported; the script exits 1 if any failed.
 """
@@ -114,13 +116,13 @@ def check_reproduction(report):
     for name, expected in EXPECTED_VERSION_TAGS.items():
         actual = champion.tags.get(name)
         report.check(f"version tag {name}", actual == expected, repr(actual))
-        
+
     expected_commit = os.environ.get(GIT_COMMIT_ENV, "")
     if expected_commit:
         actual_commit = run.data.tags.get(GIT_COMMIT_TAG)
         report.check("git commit tag", actual_commit == expected_commit, repr(actual_commit))
     else:
-        print(f"SKIP  git commit tag: {GIT_COMMIT_ENV} not set")
+        report.check("git commit tag", False, f"{GIT_COMMIT_ENV} not set: CI must forward it")
 
     tag = champion.tags.get(THRESHOLD_TAG)
     threshold = float(tag) if tag is not None else None
