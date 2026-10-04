@@ -127,8 +127,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build the app image
-        run: docker compose build
+      - name: Build the app and monitor images
+        # --profile jobs: the monitor service (and its image) is outside the default profile.
+        run: docker compose --profile jobs build
 
       - name: Start Postgres and MLflow
         run: docker compose up -d --wait postgres mlflow
@@ -160,6 +161,9 @@ jobs:
 
       - name: Check reproduction and the API end to end
         run: docker compose run --rm -T -v "$PWD/ci:/ci:ro" trainer python /ci/smoke_check.py
+
+      - name: Replay the drift scenario through the API and monitoring
+        run: docker compose run --rm -T -v "$PWD/ci:/ci:ro" monitor python /ci/drift_scenario.py
 
       - name: Show service logs
         if: failure()
