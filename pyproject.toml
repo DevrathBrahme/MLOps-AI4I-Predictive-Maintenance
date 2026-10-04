@@ -18,6 +18,12 @@ filterwarnings = [
     # MLflow's SQLite store (used only by the registry tests) triggers a SQLAlchemy
     # deprecation inside MLflow itself; nothing in this repo can fix it.
     "ignore:The ``noload`` loader strategy is deprecated:sqlalchemy.exc.SADeprecationWarning",
+    # Importing Evidently 0.7.23 (ai4i.monitor) triggers deprecations inside its
+    # own dependencies: its legacy test module touches numpy.core, and its UI
+    # server's web framework (Litestar) calls its own deprecated API.
+    "ignore:numpy.core is deprecated:DeprecationWarning:evidently",
+    "ignore:Call to deprecated function 'Dependency':DeprecationWarning",
+    "ignore:Use of deprecated class 'DependencyKwarg':DeprecationWarning",
 ]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"

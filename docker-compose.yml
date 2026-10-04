@@ -115,6 +115,7 @@ services:
       target: monitor
     image: ai4i-monitor:dev
     profiles: ["jobs"]
+    command: ["python", "-m", "ai4i.monitor", "--help"]
     environment:
       <<: *db-env
       MLFLOW_TRACKING_URI: http://mlflow:5000
